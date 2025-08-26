@@ -21,11 +21,7 @@ struct IndexSet {
 	uint32_t yIndex;
 };
 
-
-
 class MapChipField {  
-
-
 public:  
 	struct Rect {
 		float left;
@@ -33,9 +29,9 @@ public:
 		float top;
 		float bottom;
 	};
+	
 	MapChipField();  
 	~MapChipField();  
-	//void Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera);  
 	void Update();  
 	void Draw();  
 
@@ -50,6 +46,17 @@ public:
 
 	Rect GetRectByIndex(uint32_t xIndex, uint32_t yIndex);
 
+	// 碰撞检测相关方法
+	bool CheckCollision(const Rect& playerRect);
+	bool CheckCollisionAtPosition(const Vector3& position, const Vector3& size);
+	bool IsBlockAtIndex(uint32_t xIndex, uint32_t yIndex);
+	bool RectIntersectsRect(const Rect& rect1, const Rect& rect2);
+	Rect GetPlayerRect(const Vector3& position, const Vector3& size);
+	
+	// 获取碰撞信息的额外方法
+	std::vector<IndexSet> GetCollidingBlocks(const Vector3& position, const Vector3& size);
+	bool IsPositionInMapBounds(const Vector3& position);
+	bool IsIndexInMapBounds(uint32_t xIndex, uint32_t yIndex);
 
 	uint32_t GetNumBlockHorizontal() const { return numBlockHorizontal_; }
 	uint32_t GetNumBlockVertical() const { return numBlockVertical_; }
@@ -62,7 +69,6 @@ public:
 	static inline const uint32_t kNumBlockVertical = 5;  
 
 private:  
-
 	MapChipData mapChipData_;
 	
 	// Actual map dimensions (can be different from constants)

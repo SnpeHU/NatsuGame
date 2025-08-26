@@ -134,3 +134,97 @@ namespace {
 	    return rect;
     }
 
+    // 碰撞检测方法实现
+    bool MapChipField::CheckCollision(const Rect& playerRect) {
+        // 获取玩家矩形覆盖的地图瓦片范围
+        int leftIndex = static_cast<int>(playerRect.left / kBlockWidth);
+        int rightIndex = static_cast<int>(playerRect.right / kBlockWidth);
+        int bottomIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.top) / kBlockHeight);
+        int topIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.bottom) / kBlockHeight);
+
+        // 确保索引在有效范围内
+        leftIndex = std::max(0, leftIndex);
+        rightIndex = std::min(static_cast<int>(numBlockHorizontal_ - 1), rightIndex);
+        bottomIndex = std::max(0, bottomIndex);
+        topIndex = std::min(static_cast<int>(numBlockVertical_ - 1), topIndex);
+
+        // 检查范围内的每个瓦片
+        for (int y = bottomIndex; y <= topIndex; ++y) {
+            for (int x = leftIndex; x <= rightIndex; ++x) {
+                if (IsBlockAtIndex(x, y)) {
+                    Rect blockRect = GetRectByIndex(x, y);
+                    if (RectIntersectsRect(playerRect, blockRect)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    bool MapChipField::CheckCollisionAtPosition(const Vector3& position, const Vector3& size) {
+        Rect playerRect = GetPlayerRect(position, size);
+        return CheckCollision(playerRect);
+    }
+
+    bool MapChipField::IsBlockAtIndex(uint32_t xIndex, uint32_t yIndex) {
+        MapChipType chipType = GetMapChipTypeByIndex(xIndex, yIndex);
+        return chipType == MapChipType::kBlock;
+    }
+
+    bool MapChipField::RectIntersectsRect(const Rect& rect1, const Rect& rect2) {
+        return !(rect1.right <= rect2.left || 
+                 rect1.left >= rect2.right || 
+                 rect1.top <= rect2.bottom || 
+                 rect1.bottom >= rect2.top);
+    }
+
+    MapChipField::Rect MapChipField::GetPlayerRect(const Vector3& position, const Vector3& size) {
+        Rect rect;
+        rect.left = position.x - size.x / 2.0f;
+        rect.right = position.x + size.x / 2.0f;
+        rect.bottom = position.y - size.y / 2.0f;
+        rect.top = position.y + size.y / 2.0f;
+        return rect;
+    }
+
+    // 获取与玩家碰撞的所有方块索引
+    std::vector<IndexSet> MapChipField::GetCollidingBlocks(const Vector3& position, const Vector3& size) {
+        std::vector<IndexSet> collidingBlocks;
+        Rect playerRect = GetPlayerRect(position, size);
+        
+        // 获取玩家矩形覆盖的地图瓦片范围
+        int leftIndex = static_cast<int>(playerRect.left / kBlockWidth);
+        int rightIndex = static_cast<int>(playerRect.right / kBlockWidth);
+        int bottomIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.top) / kBlockHeight);
+        int topIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.bottom) / kBlockHeight);
+
+        // 确保索引在有效范围内
+        leftIndex = std::max(0, leftIndex);
+        rightIndex = std::min(static_cast<int>(numBlockHorizontal_ - 1), rightIndex);
+        bottomIndex = std::max(0, bottomIndex);
+        topIndex = std::min(static_cast<int>(numBlockVertical_ - 1), topIndex);
+
+        // 检查范围内的每个瓦片
+        for (int y = bottomIndex; y <= topIndex; ++y) {
+            for (int x = leftIndex; x <= rightIndex; ++x) {
+                if (IsBlockAtIndex(x, y)) {
+                    Rect blockRect = GetRectByIndex(x, y);
+                    if (RectIntersectsRect(playerRect, blockRect)) {
+                        collidingBlocks.push_back({static_cast<uint32_t>(x), static_cast<uint32_t>(y)});
+                    }
+                }
+            }
+        }
+        return collidingBlocks;
+    }
+
+    bool MapChipField::IsPositionInMapBounds(const Vector3& position) {
+        return position.x >= 0.0f && position.x < (numBlockHorizontal_ * kBlockWidth) &&
+               position.y >= 0.0f && position.y < (numBlockVertical_ * kBlockHeight);
+    }
+
+    bool MapChipField::IsIndexInMapBounds(uint32_t xIndex, uint32_t yIndex) {
+        return xIndex < numBlockHorizontal_ && yIndex < numBlockVertical_;
+    }
+

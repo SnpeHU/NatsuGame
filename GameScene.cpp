@@ -145,6 +145,8 @@ void GameScene::GenerateBlocks() {
 				player_->Initialize(playerModel_);
 				player_->SetCamera(&camera_);
 				player_->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
+				// 设置地图碰撞检测引用
+				player_->SetMapChipField(mapChipField_);
 			} else {
 				worldTransformBlocks_[i][j] = nullptr;
 			}
