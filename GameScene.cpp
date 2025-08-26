@@ -2,6 +2,7 @@
 #include"KamataEngine.h"
 #include "SceneManager.h"
 #include "Player.h"
+#include "Goal.h"
 #include <algorithm>
 using namespace KamataEngine;
 
@@ -31,15 +32,22 @@ GameScene::~GameScene() {
 
 void GameScene::Initialize() {
 	sceneName_ = "GameScene";
+	blockModel_ = Model::CreateFromOBJ("base_block");
+	playerModel_ = Model::CreateFromOBJ("player");
+	goalModel_ = Model::CreateFromOBJ("goal");
 }
 
 void GameScene::OnEnter() {  
     // ワールドトランスフォームの初期化  
     worldTransform_.Initialize();  
-    mapChipField_ = new MapChipField();  
-    mapChipField_->LoadMapChipCsv("Resources/map/test.csv");  
-    blockModel_ = Model::CreateFromOBJ("base_block");
-	playerModel_ = Model::CreateFromOBJ("player"); 
+    mapChipField_ = new MapChipField();
+	if (mapID != 0) {
+		mapChipField_->LoadMapChipCsv("Resources/map/level" + std::to_string(mapID) + ".csv");
+	} else {
+		mapChipField_->LoadMapChipCsv("Resources/map/select.csv");
+	}
+    //mapChipField_->LoadMapChipCsv("Resources/map/level.csv");  
+
     GenerateBlocks();  
 
     // カメラの初期化  
@@ -67,6 +75,9 @@ void GameScene::Update() {
 	CameraUpdate();
 
 	player_->Update();
+	for (std::unique_ptr<Object3d>& object : objects_) {
+		object->Update();
+	}
 	
 	for (std::vector<WorldTransform*>& worldTransformBlockX : worldTransformBlocks_) {
 		for (WorldTransform* worldTransformBlock : worldTransformBlockX) {
@@ -100,6 +111,9 @@ void GameScene::Draw() {
 		return;
 	}
 	player_->Draw();
+	for (std::unique_ptr<Object3d>& object : objects_) {
+		object->Draw();
+	}
 
 	for (std::vector<WorldTransform*>& worldTransformLine : worldTransformBlocks_) {
 		for (WorldTransform* worldTransform : worldTransformLine) {
@@ -125,6 +139,8 @@ void GameScene::GenerateBlocks() {
 	uint32_t numBlockVertical = mapChipField_->GetNumBlockVertical();
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
+	//关卡个数
+
 	// 要素数を変更する
 	// 列数を設定（縦方向のブロック数）
 	worldTransformBlocks_.resize(numBlockVertical);
@@ -139,15 +155,29 @@ void GameScene::GenerateBlocks() {
 				worldTransformBlocks_[i][j]->Initialize();
 
 				worldTransformBlocks_[i][j]->translation_ = mapChipField_->GetMapChipPositionByIndex(j, i);
-			}
-			else if(mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kSpawn) {
+			} else if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kSpawn) {
 				player_ = std::make_unique<Player>();
 				player_->Initialize(playerModel_);
 				player_->SetCamera(&camera_);
 				player_->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
 				// 设置地图碰撞检测引用
 				player_->SetMapChipField(mapChipField_);
-			} else {
+			} else if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kGoal) {
+				std::unique_ptr<Goal> goal = std::make_unique<Goal>();
+				goal->Initialize(goalModel_);
+				goal->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
+				// 如果是选择关卡场景，目标ID为当前选择的关卡ID，否则为0
+				if (mapID == 0) {
+					goal->SetTargetMapID(j + 1); // 选择关卡场景中，目标ID为横坐标+1
+				} else {
+					goal->SetTargetMapID(0); // 普通关卡中，目标ID为0
+				}
+
+				objects_.push_back(std::move(goal));
+
+
+			}
+			else {
 				worldTransformBlocks_[i][j] = nullptr;
 			}
 		}

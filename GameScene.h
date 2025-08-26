@@ -22,6 +22,9 @@ class GameScene : public IScene{
 	void CameraUpdate();
 	void SetCameraMapBounds();
 
+	void SetMapID(int newMapID) { mapID = newMapID; }
+	int GetMapID() const { return mapID; }
+
 	private:
 
 	// block
@@ -33,6 +36,12 @@ class GameScene : public IScene{
 	std::unique_ptr<Player> player_;
 	KamataEngine::Model* playerModel_ = nullptr;
 
+	//Goal
+	KamataEngine::Model* goalModel_ = nullptr;
+
+	// 存储所有除玩家和地图外的物体
+	std::vector<std::unique_ptr<Object3d>> objects_;
+
 
 	KamataEngine::WorldTransform worldTransform_;
 
@@ -43,6 +52,8 @@ class GameScene : public IScene{
 	// debugカメラ
 	KamataEngine::DebugCamera* debugCamera_ = nullptr;
 	bool isDebugCameraActive_ = false;
+
+	int mapID = 1;
 
 	
 };
