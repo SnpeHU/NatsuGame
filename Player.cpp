@@ -1,5 +1,5 @@
 #include "Player.h"
-
+#include <cmath>
 void Player::Update() {
 	Move();
 	worldTransform_.MakeAffineMatrix4x4();
