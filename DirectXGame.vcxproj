@@ -262,6 +262,7 @@
     <None Include="Resources\shaders\Sprite.hlsli" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\TD\TD3-Soul\TD3-Soul\Tool\timer.h" />
     <ClInclude Include="CameraController.h" />
     <ClInclude Include="Easing.h" />
     <ClInclude Include="Goal.h" />

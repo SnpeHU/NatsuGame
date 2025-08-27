@@ -17,7 +17,6 @@ void Player::Update() {
 	ImGui::Text("Forward: (%.2f, %.2f)", forward.x, forward.y);
 	ImGui::Text("Player Size: (%.2f, %.2f, %.2f)", playerSize_.x, playerSize_.y, playerSize_.z);
 	ImGui::Text("On Ground: %s", isOnGround ? "Yes" : "No");
-	ImGui::Text("Coyote Timer: %.3f", coyoteTimer);
 	ImGui::Text("Jump Buffer Timer: %.3f", jumpBufferTimer);
 	
 	// 碰撞调试信息
@@ -81,7 +80,6 @@ void Player::Move() {
 		if (velocity.y < 0.0f) {
 			// 向下移动碰撞（着地）
 			isOnGround = true;
-			coyoteTimer = coyoteTime;
 			lastCollisionDirection_ = CollisionDirection::kDown;
 		} else {
 			// 向上移动碰撞（撞到天花板）
@@ -121,17 +119,12 @@ void Player::HandleInput() {
 }
 
 void Player::UpdatePhysics() {
-	// 更新郊狼时间计时器
-	if (!isOnGround && coyoteTimer > 0.0f) {
-		coyoteTimer -= 1.0f / 60.0f; // 假设60FPS
-	}
 	
 	// 处理跳跃
-	bool canJump = (isOnGround || coyoteTimer > 0.0f) && jumpBufferTimer > 0.0f;
+	bool canJump = (isOnGround) && jumpBufferTimer > 0.0f;
 	if (canJump) {
 		velocity.y = jumpForce;
 		isOnGround = false;
-		coyoteTimer = 0.0f;
 		jumpBufferTimer = 0.0f;
 	}
 	
@@ -159,11 +152,6 @@ void Player::CheckGroundCollision() {
 	checkPosition.y -= playerSize_.y / 2.0f + 0.1f; // 稍微向下检查
 	
 	bool groundDetected = IsOnGround();
-	
-	// 如果之前在地面上但现在不在，开始郊狼时间
-	if (wasOnGround && !groundDetected) {
-		coyoteTimer = coyoteTime;
-	}
 	
 	isOnGround = groundDetected;
 }
@@ -234,12 +222,16 @@ void Player::CheckObjectCollisions() {
 				activeGoalCount++;
 				bool isColliding = goal->CheckCollisionWithPlayer(worldTransform_.translation_, playerSize_);
 				
-				// 检查是否为新的碰撞（防止重复触发）
-				if (isColliding && !goal->WasCollidingLastFrame()) {
+				// 检查是否为新的碰撞且可以触发
+				// 只有当这一帧发生碰撞，但上一帧没有碰撞，且Goal可以触发时，才触发回调
+				if (isColliding && !goal->WasCollidingLastFrame() && goal->CanTriggerCollision()) {
+#ifdef _DEBUG
+					printf("Player: New Goal collision detected, triggering callback\n");
+#endif
 					goal->TriggerCollision();
 				}
 				
-				// 更新碰撞状态
+				// 更新碰撞状态，用于下一帧比较
 				goal->SetWasCollidingLastFrame(isColliding);
 			}
 		}
@@ -257,5 +249,38 @@ void Player::CheckObjectCollisions() {
 	ImGui::Text("Total Goals: %d", goalCount);
 	ImGui::Text("Active Goals: %d", activeGoalCount);
 	ImGui::End();
+#endif
+}
+
+float Player::GetDistanceFromSpawn() const {
+	Vector3 currentPos = worldTransform_.translation_;
+	return static_cast<float>(sqrt(pow(currentPos.x - spawnPosition_.x, 2) + pow(currentPos.y - spawnPosition_.y, 2)));
+}
+
+bool Player::HasLeftSpawnArea(float threshold) const {
+	return GetDistanceFromSpawn() > threshold;
+}
+
+void Player::ResetToSpawn() {
+	// 重置玩家位置到生成点
+	worldTransform_.translation_ = spawnPosition_;
+	
+	// 重置物理状态
+	velocity = {0.0f, 0.0f};
+	acceleration = {0.0f, 0.0f};
+	
+	// 重置跳跃状态
+	isOnGround = false;
+	wasOnGround = false;
+	jumpBufferTimer = 0.0f;
+	
+	// 重置死亡状态
+	isDead = false;
+	
+	// 重置碰撞信息
+	lastCollisionDirection_ = CollisionDirection::kNone;
+
+#ifdef _DEBUG
+	printf("Player: Reset to spawn position (%.2f, %.2f)\n", spawnPosition_.x, spawnPosition_.y);
 #endif
 }

@@ -21,16 +21,22 @@ public:
 
 	// 回调函数设置
 	void SetOnCollisionCallback(std::function<void(Goal*)> callback) { onCollisionCallback_ = callback; }
-	void TriggerCollision() { if (onCollisionCallback_) onCollisionCallback_(this); }
+	void TriggerCollision();
 
 	// 碰撞状态管理
 	bool WasCollidingLastFrame() const { return wasCollidingLastFrame_; }
 	void SetWasCollidingLastFrame(bool colliding) { wasCollidingLastFrame_ = colliding; }
 
+	// 碰撞冷却机制
+	bool CanTriggerCollision() const;
+
 private:
 	bool isActive_ = true;
 	int id = 0;
 	bool wasCollidingLastFrame_ = false;
+	bool hasTriggered_ = false;  // 是否已经触发过
+	float collisionCooldown_ = 0.0f;  // 碰撞冷却时间
+	static constexpr float kCollisionCooldownTime = 0.5f;  // 0.5秒冷却时间
 
 	Vector2 size = {1.8f, 1.8f};
 	

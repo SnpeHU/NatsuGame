@@ -42,6 +42,13 @@ void GameScene::OnEnter() {
     worldTransform_.Initialize();  
     mapChipField_ = new MapChipField();
     
+    // 初始化游戏阶段相关变量
+    currentStage_ = GameStage::kPreparation;
+    previousStage_ = GameStage::kPreparation;
+    hasLeftSpawn_ = false;
+    stageTransitionTimer_ = 0.0f;
+    isPendingSceneChange_ = false;
+    sceneChangeTimer_ = 0.0f;
 
     
 	if (mapID != 0) {
@@ -81,6 +88,10 @@ void GameScene::OnEnter() {
     // Calculate and set map bounds for camera
     SetCameraMapBounds();
 
+#ifdef _DEBUG
+    printf("GameScene: Entered with Map ID %d, Stage: Preparation\n", mapID);
+#endif
+
     #ifdef _DEBUG  
     // 座標軸  
     AxisIndicator::GetInstance()->SetVisible(true);  
@@ -90,21 +101,34 @@ void GameScene::OnEnter() {
 }
 
 void GameScene::Update() {
-	// 处理场景切换延迟
-	if (isPendingSceneChange_) {
-		sceneChangeTimer_ += 1.0f / 60.0f; // 假设60FPS
-		
-		if (sceneChangeTimer_ >= sceneChangeDelay_) {
-			// 执行场景切换
-			SceneManager::GetInstance().SetNextMapID(pendingTargetMapID_);
-			SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
-			return; // 场景即将切换，不需要继续更新
-		}
+	// 更新游戏阶段
+	UpdateGameStage();
+
+	// 根据当前阶段执行不同的逻辑
+	switch (currentStage_) {
+	case GameStage::kPreparation:
+		HandlePreparationStage();
+		break;
+	case GameStage::kGameplay:
+		HandleGameplayStage();
+		break;
+	case GameStage::kEnding:
+		HandleEndingStage();
+		return; // 结束阶段时不进行其他更新
 	}
 
 	CameraUpdate();
 
-	player_->Update();
+	if (player_ && !player_->GetIsDead()) {
+		player_->Update();
+		
+		// 检查玩家是否死亡（比如掉出地图边界）
+		Vector3 playerPos = player_->GetTranslation();
+		if (playerPos.y < -20.0f) { // 如果玩家掉到地图下方
+			OnPlayerDeath();
+		}
+	}
+	
 	for (std::unique_ptr<Object3d>& object : objects_) {
 		object->Update();
 	}
@@ -125,6 +149,39 @@ void GameScene::Update() {
 	ImGui::Text("Map ID: %d", mapID);
 	ImGui::Text("Map Size: %dx%d", mapChipField_->GetNumBlockHorizontal(), mapChipField_->GetNumBlockVertical());
 	ImGui::Text("Objects Count: %d", static_cast<int>(objects_.size()));
+	
+	// 游戏阶段信息
+	const char* stageNames[] = {"Preparation", "Gameplay", "Ending"};
+	ImGui::Separator();
+	ImGui::Text("Game Stage: %s", stageNames[static_cast<int>(currentStage_)]);
+	ImGui::Text("Has Left Spawn: %s", hasLeftSpawn_ ? "Yes" : "No");
+	ImGui::Text("Spawn Position: (%.2f, %.2f)", spawnPosition_.x, spawnPosition_.y);
+	if (player_) {
+		Vector3 playerPos = player_->GetTranslation();
+		ImGui::Text("Player Position: (%.2f, %.2f)", playerPos.x, playerPos.y);
+		float distanceFromSpawn = static_cast<float>(sqrt(pow(playerPos.x - spawnPosition_.x, 2) + pow(playerPos.y - spawnPosition_.y, 2)));
+		ImGui::Text("Distance from Spawn: %.2f", distanceFromSpawn);
+		ImGui::Text("Player Dead: %s", player_->GetIsDead() ? "Yes" : "No");
+	}
+
+	// Goal状态信息
+	ImGui::Separator();
+	ImGui::Text("Goal Information:");
+	for (size_t i = 0; i < objects_.size(); ++i) {
+		Goal* goal = dynamic_cast<Goal*>(objects_[i].get());
+		if (goal) {
+			ImGui::Text("Goal %zu: Active=%s, CanTrigger=%s, Target=%d", 
+				i, 
+				goal->IsActive() ? "Yes" : "No",
+				goal->CanTriggerCollision() ? "Yes" : "No",
+				goal->GetTargetMapID());
+		}
+	}
+	
+	if (currentStage_ == GameStage::kEnding) {
+		ImGui::Text("Stage Transition Timer: %.2f / %.2f", stageTransitionTimer_, endingStageDelay_);
+		ImGui::ProgressBar(stageTransitionTimer_ / endingStageDelay_);
+	}
 	
 	if (isPendingSceneChange_) {
 		ImGui::Text("Scene Change Pending...");
@@ -153,15 +210,64 @@ void GameScene::Update() {
 		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
 	}
 
-	// Show instructions
+	// 阶段控制测试
 	ImGui::Separator();
-	ImGui::Text("Test Instructions:");
-	ImGui::Text("1. Press 1/2/0 keys to switch maps manually");
-	ImGui::Text("2. Walk into the goal to trigger automatic switching");
-	ImGui::Text("3. Watch console output for debug messages");
+	ImGui::Text("Stage Control Testing:");
+	if (ImGui::Button("Reset to Preparation")) {
+		SetGameStage(GameStage::kPreparation);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Force Player Death")) {
+		OnPlayerDeath();
+	}
 
-	ImGui::End();
-	
+	// Goal测试控制
+	ImGui::Separator();
+	ImGui::Text("Goal Testing:");
+	if (ImGui::Button("Force Goal Collision")) {
+		// 手动触发第一个Goal的碰撞
+		for (const auto& object : objects_) {
+			Goal* goal = dynamic_cast<Goal*>(object.get());
+			if (goal && goal->IsActive()) {
+				printf("Debug: Manually triggering Goal collision\n");
+				OnGoalCollision(goal);
+				break;
+			}
+		}
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Reset All Goals")) {
+		// 重置所有Goal状态
+		for (const auto& object : objects_) {
+			Goal* goal = dynamic_cast<Goal*>(object.get());
+			if (goal) {
+				goal->SetActive(true);
+				// 如果Goal有重置触发状态的方法，这里调用
+			}
+		}
+	}
+
+	// 显示详细的碰撞调试信息
+	ImGui::Separator();
+	ImGui::Text("Collision Debug:");
+	if (player_) {
+		Vector3 playerPos = player_->GetTranslation();
+		Vector3 playerSize = player_->GetPlayerSize();
+		
+		for (size_t i = 0; i < objects_.size(); ++i) {
+			Goal* goal = dynamic_cast<Goal*>(objects_[i].get());
+			if (goal) {
+				Vector3 goalPos = goal->GetTranslation();
+				Vector3 goalSize = goal->GetGoalSize();
+				bool isColliding = goal->CheckCollisionWithPlayer(playerPos, playerSize);
+				float distance = static_cast<float>(sqrt(pow(playerPos.x - goalPos.x, 2) + pow(playerPos.y - goalPos.y, 2)));
+				
+				ImGui::Text("Goal %zu: Pos(%.1f,%.1f) Dist=%.1f Colliding=%s", 
+					i, goalPos.x, goalPos.y, distance, isColliding ? "YES" : "NO");
+			}
+		}
+	}
+
 	// Keyboard shortcuts for testing
 	if (Input::GetInstance()->TriggerKey(DIK_1)) {
 		SceneManager::GetInstance().SetNextMapID(1);
@@ -179,6 +285,35 @@ void GameScene::Update() {
 	if (Input::GetInstance()->TriggerKey(DIK_RIGHT)) {
 		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kTitle);
 	}
+
+	// 测试玩家死亡
+	if (Input::GetInstance()->TriggerKey(DIK_K)) {
+		OnPlayerDeath();
+	}
+
+	// 测试Goal碰撞
+	if (Input::GetInstance()->TriggerKey(DIK_G)) {
+		// 手动触发第一个激活的Goal碰撞
+		for (const auto& object : objects_) {
+			Goal* goal = dynamic_cast<Goal*>(object.get());
+			if (goal && goal->IsActive()) {
+				printf("Debug: Manual Goal collision test (G key pressed)\n");
+				OnGoalCollision(goal);
+				break;
+			}
+		}
+	}
+	// Show instructions
+	ImGui::Separator();
+	ImGui::Text("Test Instructions:");
+	ImGui::Text("1. Press 1/2/0 keys to switch maps manually");
+	ImGui::Text("2. Walk into the goal to trigger automatic switching");
+	ImGui::Text("3. Move away from spawn to enter gameplay stage");
+	ImGui::Text("4. Goals have collision cooldown to prevent freezing");
+	ImGui::Text("5. Watch console output for debug messages");
+	ImGui::Text("6. Press K to test player death");
+	ImGui::Text("7. Press G to manually test Goal collision");
+	ImGui::Text("8. Use buttons above to force Goal collision");
 #endif // _DEBUG
 
 }
@@ -222,7 +357,7 @@ void GameScene::GenerateBlocks() {
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
 	//关卡个数
-	int goalCount = 0;
+	int goalCount = 2;
 	int spawnCount = 0;
 	int blockCount = 0;
 
@@ -255,11 +390,19 @@ void GameScene::GenerateBlocks() {
 				player_ = std::make_unique<Player>();
 				player_->Initialize(playerModel_);
 				player_->SetCamera(&camera_);
-				player_->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
+				Vector3 spawnPos = mapChipField_->GetMapChipPositionByIndex(j, i);
+				player_->SetTranslation(spawnPos);
+				
+				// 记录生成位置并初始化游戏阶段
+				spawnPosition_ = spawnPos;
+				player_->SetSpawnPosition(spawnPos);  // 也设置到Player类中
+				hasLeftSpawn_ = false;
+				SetGameStage(GameStage::kPreparation);
+				
 				// 设置地图碰撞检测引用
 				player_->SetMapChipField(mapChipField_);
 			} else if (chipType == MapChipType::kGoal) {
-				goalCount++;
+				
 #ifdef _DEBUG
 				printf("GameScene: Found goal at (%d, %d)\n", j, i);
 #endif
@@ -271,6 +414,7 @@ void GameScene::GenerateBlocks() {
 				if (mapID == 0) {
 					// 关卡选择场景：目标ID为关卡编号
 					goal->SetTargetMapID(goalCount);
+					goalCount--;
 				} else {
 					// 普通关卡场景的Goal设置
 					// 可以根据位置或其他逻辑来设置不同的目标
@@ -320,6 +464,13 @@ void GameScene::GenerateBlocks() {
 			0.0f
 		};
 		player_->SetTranslation(centerPos);
+		
+		// 记录生成位置并初始化游戏阶段
+		spawnPosition_ = centerPos;
+		player_->SetSpawnPosition(centerPos);  // 也设置到Player类中
+		hasLeftSpawn_ = false;
+		SetGameStage(GameStage::kPreparation);
+		
 		player_->SetMapChipField(mapChipField_);
 	}
 
@@ -438,30 +589,26 @@ void GameScene::SetCameraMapBounds() {
 }
 
 void GameScene::OnGoalCollision(Goal* goal) {
-	if (!goal || !goal->IsActive() || isPendingSceneChange_) {
-		return; // 如果已经在等待场景切换，则忽略新的碰撞
+	if (!goal || !goal->IsActive()) {
+#ifdef _DEBUG
+		printf("GameScene: Goal collision ignored - Goal inactive\n");
+#endif
+		return;
 	}
+
+	// 只有在游戏阶段才能触发Goal碰撞
+	if (currentStage_ != GameStage::kGameplay) {
+#ifdef _DEBUG
+		printf("GameScene: Goal collision ignored - Not in gameplay stage (current: %d)\n", static_cast<int>(currentStage_));
+#endif
+		return;
+	}
+
 
 	int targetMapID = goal->GetTargetMapID();
 
 #ifdef _DEBUG
 	printf("GameScene: Goal collision detected! Current Map: %d, Target Map: %d\n", mapID, targetMapID);
-#endif
-
-#ifdef _DEBUG
-	static bool showCollisionDebug = false;
-	if (showCollisionDebug) {
-		ImGui::Begin("Collision Debug");
-		ImGui::Text("Goal collision detected!");
-		ImGui::Text("Current Map ID: %d", mapID);
-		ImGui::Text("Target Map ID: %d", targetMapID);
-		ImGui::Text("Goal Position: (%.2f, %.2f)", goal->GetTranslation().x, goal->GetTranslation().y);
-		ImGui::Text("Player Position: (%.2f, %.2f)", player_->GetTranslation().x, player_->GetTranslation().y);
-		if (ImGui::Button("Close Debug")) {
-			showCollisionDebug = false;
-		}
-		ImGui::End();
-	}
 #endif
 
 	// 确定最终的目标关卡ID
@@ -491,16 +638,132 @@ void GameScene::OnGoalCollision(Goal* goal) {
 	printf("GameScene: Final target map ID: %d\n", finalTargetMapID);
 #endif
 
-	// 启动场景切换延迟
-	isPendingSceneChange_ = true;
-	sceneChangeTimer_ = 0.0f;
+	// 设置等待场景切换的目标ID
 	pendingTargetMapID_ = finalTargetMapID;
+	isPendingSceneChange_ = true;
+
+	// 进入结束阶段
+	SetGameStage(GameStage::kEnding);
 
 	// 禁用已触发的Goal以防重复触发
 	goal->SetActive(false);
 
 #ifdef _DEBUG
-	showCollisionDebug = true;
-	printf("GameScene: Scene change pending, timer started\n");
+	printf("GameScene: Goal reached, entering ending stage. Scene change will occur in %.1f seconds\n", endingStageDelay_);
 #endif
+}
+
+void GameScene::SetGameStage(GameStage stage) {
+	if (currentStage_ != stage) {
+		previousStage_ = currentStage_;
+		currentStage_ = stage;
+		stageTransitionTimer_ = 0.0f;
+
+#ifdef _DEBUG
+		const char* stageNames[] = {"Preparation", "Gameplay", "Ending"};
+		printf("GameScene: Stage changed from %s to %s\n", 
+			stageNames[static_cast<int>(previousStage_)], 
+			stageNames[static_cast<int>(currentStage_)]);
+#endif
+	}
+}
+
+void GameScene::UpdateGameStage() {
+	switch (currentStage_) {
+	case GameStage::kPreparation:
+		// 检查玩家是否离开了生成点
+		if (player_) {
+			// 使用Player类的方法来检查是否离开生成区域
+			if (player_->HasLeftSpawnArea(1.0f) && !hasLeftSpawn_) {
+				hasLeftSpawn_ = true;
+				SetGameStage(GameStage::kGameplay);
+			}
+		}
+		break;
+	
+	case GameStage::kGameplay:
+		// 检查玩家是否死亡
+		if (player_ && player_->GetIsDead()) {
+			SetGameStage(GameStage::kEnding);
+		}
+		break;
+	
+	case GameStage::kEnding:
+		// 在结束阶段，更新计时器
+		stageTransitionTimer_ += 1.0f / 60.0f; // 假设60FPS
+		break;
+	}
+}
+
+void GameScene::HandlePreparationStage() {
+	// 准备阶段：显示准备提示信息，限制某些功能等
+	// 可以在这里添加UI提示，比如"移动离开生成点开始游戏"
+
+#ifdef _DEBUG
+	// 只在第一次进入准备阶段时显示消息
+	static bool hasShownPreparationMessage = false;
+	if (!hasShownPreparationMessage) {
+		printf("GameScene: Entering Preparation Stage - Move away from spawn to start\n");
+		hasShownPreparationMessage = true;
+	}
+#endif
+}
+
+void GameScene::HandleGameplayStage() {
+	// 游戏阶段：正常的游戏逻辑
+	// 这里可以添加游戏时间计时、分数计算等
+
+#ifdef _DEBUG
+	// 只在第一次进入游戏阶段时显示消息
+	static bool hasShownGameplayMessage = false;
+	if (!hasShownGameplayMessage) {
+		printf("GameScene: Entering Gameplay Stage - Game started!\n");
+		hasShownGameplayMessage = true;
+	}
+#endif
+}
+
+void GameScene::HandleEndingStage() {
+	// 结束阶段：处理游戏结束逻辑
+	if (stageTransitionTimer_ >= endingStageDelay_) {
+		if (player_ && player_->GetIsDead()) {
+			// 玩家死亡，重新加载当前关卡
+#ifdef _DEBUG
+			printf("GameScene: Player died, reloading current level %d\n", mapID);
+#endif
+			SceneManager::GetInstance().SetNextMapID(mapID);
+			SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+		} else if (isPendingSceneChange_) {
+			// 玩家到达Goal，切换到目标关卡
+#ifdef _DEBUG
+			printf("GameScene: Goal reached, switching to map %d\n", pendingTargetMapID_);
+#endif
+			SceneManager::GetInstance().SetNextMapID(pendingTargetMapID_);
+			SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+		}
+	}
+
+#ifdef _DEBUG
+	// 只在第一次进入结束阶段时显示消息
+	static bool hasShownEndingMessage = false;
+	if (!hasShownEndingMessage) {
+		if (player_ && player_->GetIsDead()) {
+			printf("GameScene: Entering Ending Stage - Player died, will reload level\n");
+		} else {
+			printf("GameScene: Entering Ending Stage - Player reached goal\n");
+		}
+		hasShownEndingMessage = true;
+	}
+#endif
+}
+
+void GameScene::OnPlayerDeath() {
+	if (player_) {
+		player_->SetIsDead(true);
+		SetGameStage(GameStage::kEnding);
+
+#ifdef _DEBUG
+		printf("GameScene: Player death detected\n");
+#endif
+	}
 }

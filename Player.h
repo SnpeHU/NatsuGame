@@ -33,6 +33,18 @@ public:
 	void SetObjects(const std::vector<std::unique_ptr<Object3d>>* objects) { objects_ = objects; }
 	void CheckObjectCollisions();
 
+	void SetIsDead(bool dead) { isDead = dead; }
+	bool GetIsDead() const { return isDead; }
+
+	// 游戏阶段支持方法
+	void SetSpawnPosition(const Vector3& spawnPos) { spawnPosition_ = spawnPos; }
+	Vector3 GetSpawnPosition() const { return spawnPosition_; }
+	float GetDistanceFromSpawn() const;
+	bool HasLeftSpawnArea(float threshold = 1.0f) const;
+
+	// 重置玩家状态（用于重新开始关卡）
+	void ResetToSpawn();
+
 private:
 	MapChipField* mapChipField_ = nullptr;
 	const std::vector<std::unique_ptr<Object3d>>* objects_ = nullptr;
@@ -45,6 +57,7 @@ private:
 	float gravity = 0.025f;   // 重力加速度
 	float maxFallSpeed = 0.8f;  // 最大下落速度
 	bool isEnableGravity = true;  // 启用重力
+	bool isDead = false;         // 死亡状态
 
 	// 输入状态
 	bool isLeft = false;
@@ -55,8 +68,7 @@ private:
 	// 地面检测和跳跃状态
 	bool isOnGround = false;
 	bool wasOnGround = false;
-	float coyoteTime = 0.1f;  // 郊狼时间（离开地面后仍可跳跃的时间）
-	float coyoteTimer = 0.0f;
+
 	float jumpBufferTime = 0.1f;  // 跳跃缓冲时间
 	float jumpBufferTimer = 0.0f;
 
@@ -65,6 +77,9 @@ private:
 
 	// 碰撞调试信息
 	CollisionDirection lastCollisionDirection_ = CollisionDirection::kNone;
+
+	// 生成点相关
+	Vector3 spawnPosition_ = {0.0f, 0.0f, 0.0f};
 
 	// 新增的私有方法
 	void HandleInput();
