@@ -30,6 +30,10 @@ void SceneManager::Init() {
 	currentSceneType_ = SceneType::kGame;
 	
 	if (currentScene_) {
+		GameScene* gameScene = dynamic_cast<GameScene*>(currentScene_.get());
+		if (gameScene) {
+			gameScene->SetMapID(nextMapID_);
+		}
 		currentScene_->OnEnter();
 	}
 }
@@ -47,11 +51,15 @@ void SceneManager::Draw() {
 }
 
 void SceneManager::ChangeScene(SceneType newSceneType) { 
-	// 如果要切换到相同的场景类型，直接返回
-	if (currentSceneType_ == newSceneType) {
-		return;
-	}
-	
+#ifdef _DEBUG
+	// Debug scene change
+	const char* sceneNames[] = {"None", "Title", "Game"};
+	printf("SceneManager: Changing scene from %s to %s\n", 
+		sceneNames[static_cast<int>(currentSceneType_)], 
+		sceneNames[static_cast<int>(newSceneType)]);
+	printf("SceneManager: Next Map ID: %d\n", nextMapID_);
+#endif
+
 	// 退出并释放当前场景
 	if (currentScene_) {
 		currentScene_->OnExit();
@@ -70,6 +78,16 @@ void SceneManager::ChangeScene(SceneType newSceneType) {
 	case SceneType::kGame:
 		currentScene_ = std::make_unique<GameScene>();
 		currentScene_->Initialize();
+		// Set the map ID for the GameScene
+		if (currentScene_) {
+			GameScene* gameScene = dynamic_cast<GameScene*>(currentScene_.get());
+			if (gameScene) {
+				gameScene->SetMapID(nextMapID_);
+#ifdef _DEBUG
+				printf("SceneManager: Set Map ID %d for GameScene\n", nextMapID_);
+#endif
+			}
+		}
 		break;
 	default:
 		// 保持 currentScene_ 为 nullptr
@@ -84,4 +102,8 @@ void SceneManager::ChangeScene(SceneType newSceneType) {
 	if (currentScene_) {
 		currentScene_->OnEnter();
 	}
+
+#ifdef _DEBUG
+	printf("SceneManager: Scene change completed\n");
+#endif
 }

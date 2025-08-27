@@ -41,12 +41,30 @@ void GameScene::OnEnter() {
     // ワールドトランスフォームの初期化  
     worldTransform_.Initialize();  
     mapChipField_ = new MapChipField();
+    
+
+    
 	if (mapID != 0) {
-		mapChipField_->LoadMapChipCsv("Resources/map/level" + std::to_string(mapID) + ".csv");
+		std::string mapPath = "Resources/map/level" + std::to_string(mapID) + ".csv";
+
+
+		try {
+			mapChipField_->LoadMapChipCsv(mapPath);
+		} catch (...) {
+
+			mapChipField_->LoadMapChipCsv("Resources/map/test.csv");
+		}
 	} else {
-		mapChipField_->LoadMapChipCsv("Resources/map/select.csv");
+		std::string mapPath = "Resources/map/select.csv";
+
+		try {
+			mapChipField_->LoadMapChipCsv(mapPath);
+		} catch (...) {
+
+			mapChipField_->LoadMapChipCsv("Resources/map/test.csv");
+		}
 	}
-    //mapChipField_->LoadMapChipCsv("Resources/map/level.csv");  
+
 
     GenerateBlocks();  
 
@@ -72,6 +90,18 @@ void GameScene::OnEnter() {
 }
 
 void GameScene::Update() {
+	// 处理场景切换延迟
+	if (isPendingSceneChange_) {
+		sceneChangeTimer_ += 1.0f / 60.0f; // 假设60FPS
+		
+		if (sceneChangeTimer_ >= sceneChangeDelay_) {
+			// 执行场景切换
+			SceneManager::GetInstance().SetNextMapID(pendingTargetMapID_);
+			SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+			return; // 场景即将切换，不需要继续更新
+		}
+	}
+
 	CameraUpdate();
 
 	player_->Update();
@@ -92,8 +122,60 @@ void GameScene::Update() {
 
 	ImGui::Begin("Game Scene Debug");
 	ImGui::Text("Scene Name: %s", sceneName_.c_str());
+	ImGui::Text("Map ID: %d", mapID);
+	ImGui::Text("Map Size: %dx%d", mapChipField_->GetNumBlockHorizontal(), mapChipField_->GetNumBlockVertical());
+	ImGui::Text("Objects Count: %d", static_cast<int>(objects_.size()));
+	
+	if (isPendingSceneChange_) {
+		ImGui::Text("Scene Change Pending...");
+		ImGui::Text("Timer: %.2f / %.2f", sceneChangeTimer_, sceneChangeDelay_);
+		ImGui::Text("Target Map ID: %d", pendingTargetMapID_);
+		ImGui::ProgressBar(sceneChangeTimer_ / sceneChangeDelay_);
+	} else {
+		ImGui::Text("Scene Change: Ready");
+	}
+
+	// Manual scene change testing
+	ImGui::Separator();
+	ImGui::Text("Manual Scene Change Testing:");
+	if (ImGui::Button("Load Map 1")) {
+		SceneManager::GetInstance().SetNextMapID(1);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load Map 2")) {
+		SceneManager::GetInstance().SetNextMapID(2);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load Map 0 (Select)")) {
+		SceneManager::GetInstance().SetNextMapID(0);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+
+	// Show instructions
+	ImGui::Separator();
+	ImGui::Text("Test Instructions:");
+	ImGui::Text("1. Press 1/2/0 keys to switch maps manually");
+	ImGui::Text("2. Walk into the goal to trigger automatic switching");
+	ImGui::Text("3. Watch console output for debug messages");
 
 	ImGui::End();
+	
+	// Keyboard shortcuts for testing
+	if (Input::GetInstance()->TriggerKey(DIK_1)) {
+		SceneManager::GetInstance().SetNextMapID(1);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+	if (Input::GetInstance()->TriggerKey(DIK_2)) {
+		SceneManager::GetInstance().SetNextMapID(2);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+	if (Input::GetInstance()->TriggerKey(DIK_0)) {
+		SceneManager::GetInstance().SetNextMapID(0);
+		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kGame);
+	}
+	
 	if (Input::GetInstance()->TriggerKey(DIK_RIGHT)) {
 		SceneManager::GetInstance().ChangeScene(SceneManager::SceneType::kTitle);
 	}
@@ -140,47 +222,140 @@ void GameScene::GenerateBlocks() {
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
 	//关卡个数
+	int goalCount = 0;
+	int spawnCount = 0;
+	int blockCount = 0;
+
+#ifdef _DEBUG
+	printf("GameScene: Generating blocks for %dx%d map\n", numBlockHorizontal, numBlockVertical);
+#endif
 
 	// 要素数を変更する
-	// 列数を設定（縦方向のブロック数）
+	// 列数を設定（縦方向のブロック数）"
 	worldTransformBlocks_.resize(numBlockVertical);
 	for (uint32_t i = 0; i < numBlockVertical; i++) {
 		worldTransformBlocks_[i].resize(numBlockHorizontal);
 	}
 	for (uint32_t i = 0; i < numBlockVertical; i++) {
 		for (uint32_t j = 0; j < numBlockHorizontal; j++) {
-			if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kBlock) {
+			MapChipType chipType = mapChipField_->GetMapChipTypeByIndex(j, i);
+			
+			if (chipType == MapChipType::kBlock) {
+				blockCount++;
 				WorldTransform* worldTransform = new WorldTransform();
 				worldTransformBlocks_[i][j] = worldTransform;
 				worldTransformBlocks_[i][j]->Initialize();
 
 				worldTransformBlocks_[i][j]->translation_ = mapChipField_->GetMapChipPositionByIndex(j, i);
-			} else if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kSpawn) {
+			} else if (chipType == MapChipType::kSpawn) {
+				spawnCount++;
+#ifdef _DEBUG
+				printf("GameScene: Found spawn at (%d, %d)\n", j, i);
+#endif
 				player_ = std::make_unique<Player>();
 				player_->Initialize(playerModel_);
 				player_->SetCamera(&camera_);
 				player_->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
 				// 设置地图碰撞检测引用
 				player_->SetMapChipField(mapChipField_);
-			} else if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kGoal) {
+			} else if (chipType == MapChipType::kGoal) {
+				goalCount++;
+#ifdef _DEBUG
+				printf("GameScene: Found goal at (%d, %d)\n", j, i);
+#endif
 				std::unique_ptr<Goal> goal = std::make_unique<Goal>();
 				goal->Initialize(goalModel_);
 				goal->SetTranslation(mapChipField_->GetMapChipPositionByIndex(j, i));
-				// 如果是选择关卡场景，目标ID为当前选择的关卡ID，否则为0
+				
+				// 设置目标关卡ID的逻辑
 				if (mapID == 0) {
-					goal->SetTargetMapID(j + 1); // 选择关卡场景中，目标ID为横坐标+1
+					// 关卡选择场景：目标ID为关卡编号
+					goal->SetTargetMapID(goalCount);
 				} else {
-					goal->SetTargetMapID(0); // 普通关卡中，目标ID为0
+					// 普通关卡场景的Goal设置
+					// 可以根据位置或其他逻辑来设置不同的目标
+					// 默认情况：返回关卡选择场景
+					goal->SetTargetMapID(0);
+					
+					// 可选：如果有多个Goal，可以设置不同的目标
+					// 例如：最右边的Goal进入下一关，最左边的Goal返回选择场景
+					if (j == numBlockHorizontal - 1) {
+						// 最右边的Goal：进入下一关
+						goal->SetTargetMapID(-1); // -1表示自动下一关
+					} else if (j == 0) {
+						// 最左边的Goal：返回关卡选择
+						goal->SetTargetMapID(0);
+					}
 				}
 
+				// 设置碰撞回调函数
+				goal->SetOnCollisionCallback([this](Goal* goal) {
+					this->OnGoalCollision(goal);
+				});
+
 				objects_.push_back(std::move(goal));
-
-
 			}
 			else {
 				worldTransformBlocks_[i][j] = nullptr;
 			}
 		}
+	}
+
+#ifdef _DEBUG
+	printf("GameScene: Generated %d blocks, %d spawns, %d goals\n", blockCount, spawnCount, goalCount);
+#endif
+
+	// 如果没有找到玩家生成点，在地图中心创建一个
+	if (!player_) {
+#ifdef _DEBUG
+		printf("GameScene: No spawn point found, creating player at map center\n");
+#endif
+		player_ = std::make_unique<Player>();
+		player_->Initialize(playerModel_);
+		player_->SetCamera(&camera_);
+		// 设置在地图中心
+		Vector3 centerPos = {
+			(numBlockHorizontal * MapChipField::kBlockWidth) / 2.0f,
+			(numBlockVertical * MapChipField::kBlockHeight) / 2.0f,
+			0.0f
+		};
+		player_->SetTranslation(centerPos);
+		player_->SetMapChipField(mapChipField_);
+	}
+
+	// 如果没有找到任何Goal，手动创建一个测试用的Goal
+	if (goalCount == 0) {
+#ifdef _DEBUG
+		printf("GameScene: No goals found, creating test goal\n");
+#endif
+		std::unique_ptr<Goal> goal = std::make_unique<Goal>();
+		goal->Initialize(goalModel_);
+		// 将Goal放在地图右上角
+		Vector3 goalPos = {
+			(numBlockHorizontal - 2) * MapChipField::kBlockWidth + MapChipField::kBlockWidth / 2.0f,
+			(numBlockVertical - 2) * MapChipField::kBlockHeight + MapChipField::kBlockHeight / 2.0f,
+			0.0f
+		};
+		goal->SetTranslation(goalPos);
+		
+		// 设置目标关卡ID
+		if (mapID == 0) {
+			goal->SetTargetMapID(1); // 从选择场景进入关卡1
+		} else {
+			goal->SetTargetMapID(0); // 从关卡返回选择场景
+		}
+
+		// 设置碰撞回调函数
+		goal->SetOnCollisionCallback([this](Goal* goal) {
+			this->OnGoalCollision(goal);
+		});
+
+		objects_.push_back(std::move(goal));
+	}
+
+	// 设置玩家的对象引用（用于碰撞检测）
+	if (player_) {
+		player_->SetObjects(&objects_);
 	}
 }
 
@@ -260,4 +435,72 @@ void GameScene::SetCameraMapBounds() {
         deadZoneScale = 2.0f; // Cap at 2x
     }
     cameraController_->SetDeadZone(3.0f * deadZoneScale, 3.0f * deadZoneScale);
+}
+
+void GameScene::OnGoalCollision(Goal* goal) {
+	if (!goal || !goal->IsActive() || isPendingSceneChange_) {
+		return; // 如果已经在等待场景切换，则忽略新的碰撞
+	}
+
+	int targetMapID = goal->GetTargetMapID();
+
+#ifdef _DEBUG
+	printf("GameScene: Goal collision detected! Current Map: %d, Target Map: %d\n", mapID, targetMapID);
+#endif
+
+#ifdef _DEBUG
+	static bool showCollisionDebug = false;
+	if (showCollisionDebug) {
+		ImGui::Begin("Collision Debug");
+		ImGui::Text("Goal collision detected!");
+		ImGui::Text("Current Map ID: %d", mapID);
+		ImGui::Text("Target Map ID: %d", targetMapID);
+		ImGui::Text("Goal Position: (%.2f, %.2f)", goal->GetTranslation().x, goal->GetTranslation().y);
+		ImGui::Text("Player Position: (%.2f, %.2f)", player_->GetTranslation().x, player_->GetTranslation().y);
+		if (ImGui::Button("Close Debug")) {
+			showCollisionDebug = false;
+		}
+		ImGui::End();
+	}
+#endif
+
+	// 确定最终的目标关卡ID
+	int finalTargetMapID = targetMapID;
+	
+	// 根据目标关卡ID执行不同的操作
+	if (mapID == 0) {
+		// 在关卡选择场景中，切换到对应关卡
+		if (targetMapID > 0) {
+			finalTargetMapID = targetMapID;
+		}
+	} else {
+		// 在普通关卡中的处理
+		if (targetMapID == 0) {
+			// 返回关卡选择场景
+			finalTargetMapID = 0;
+		} else if (targetMapID > 0) {
+			// 切换到指定关卡（下一关或特定关卡）
+			finalTargetMapID = targetMapID;
+		} else if (targetMapID == -1) {
+			// 自动切换到下一关
+			finalTargetMapID = mapID + 1;
+		}
+	}
+
+#ifdef _DEBUG
+	printf("GameScene: Final target map ID: %d\n", finalTargetMapID);
+#endif
+
+	// 启动场景切换延迟
+	isPendingSceneChange_ = true;
+	sceneChangeTimer_ = 0.0f;
+	pendingTargetMapID_ = finalTargetMapID;
+
+	// 禁用已触发的Goal以防重复触发
+	goal->SetActive(false);
+
+#ifdef _DEBUG
+	showCollisionDebug = true;
+	printf("GameScene: Scene change pending, timer started\n");
+#endif
 }

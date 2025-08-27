@@ -27,6 +27,10 @@ public:
 	void Draw();
 	void ChangeScene(SceneType newSceneType);
 
+	// Map ID management
+	void SetNextMapID(int mapID) { nextMapID_ = mapID; }
+	int GetNextMapID() const { return nextMapID_; }
+
 private:
 	SceneManager() = default; 
 	static std::unique_ptr<SceneManager> instance_;
@@ -34,4 +38,5 @@ private:
 	std::unique_ptr<IScene> currentScene_ = nullptr; 
 	SceneType currentSceneType_ = SceneType::kNone; 
 
+	int nextMapID_ = 0; // Default map ID
 };

@@ -271,6 +271,7 @@
     <ClInclude Include="IScene.h" />
     <ClInclude Include="MapChipField.h" />
     <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="timer.h" />
     <ClInclude Include="TitleScene.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

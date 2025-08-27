@@ -1,7 +1,10 @@
 #pragma once
 #include <KamataEngine.h>
+#include <vector>
+#include <memory>
 using namespace KamataEngine;
 class MapChipField;
+class Goal;
 
 enum class CollisionDirection {
     kNone,
@@ -26,8 +29,14 @@ public:
 	Vector3 GetPlayerSize() const { return playerSize_; }
 	void SetPlayerSize(const Vector3& size) { playerSize_ = size; }
 
+	// 对象碰撞检测相关方法
+	void SetObjects(const std::vector<std::unique_ptr<Object3d>>* objects) { objects_ = objects; }
+	void CheckObjectCollisions();
+
 private:
 	MapChipField* mapChipField_ = nullptr;
+	const std::vector<std::unique_ptr<Object3d>>* objects_ = nullptr;
+	
 	Vector2 forward = {0.0f, 1.0f};
 	Vector2 velocity = {0.0f, 0.0f};
 	Vector2 acceleration = {0.0f, 0.0f};

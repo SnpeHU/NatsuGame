@@ -1,14 +1,16 @@
 #include "Player.h"
 #include "MapChipField.h"
+#include "Goal.h"
 #include <cmath>
 
 void Player::Update() {
 	Move();
+	CheckObjectCollisions();
 	worldTransform_.MakeAffineMatrix4x4();
 	worldTransform_.TransferMatrix();
 
 #ifdef _DEBUG
-	// ImGuiのデバッグウィンドウ
+	// ImGui的调试窗口
 	ImGui::Begin("Player Debug");
 	ImGui::Text("Player Position: (%.2f, %.2f)", worldTransform_.translation_.x, worldTransform_.translation_.y);
 	ImGui::Text("Velocity: (%.2f, %.2f)", velocity.x, velocity.y);
@@ -213,4 +215,47 @@ CollisionDirection Player::CheckCollisionDirection(const Vector3& currentPos, co
 	} else {
 		return movement.y > 0 ? CollisionDirection::kUp : CollisionDirection::kDown;
 	}
+}
+
+void Player::CheckObjectCollisions() {
+	if (!objects_) {
+		return;
+	}
+
+	int goalCount = 0;
+	int activeGoalCount = 0;
+	
+	for (const auto& object : *objects_) {
+		// 尝试转换为Goal对象
+		Goal* goal = dynamic_cast<Goal*>(object.get());
+		if (goal) {
+			goalCount++;
+			if (goal->IsActive()) {
+				activeGoalCount++;
+				bool isColliding = goal->CheckCollisionWithPlayer(worldTransform_.translation_, playerSize_);
+				
+				// 检查是否为新的碰撞（防止重复触发）
+				if (isColliding && !goal->WasCollidingLastFrame()) {
+					goal->TriggerCollision();
+				}
+				
+				// 更新碰撞状态
+				goal->SetWasCollidingLastFrame(isColliding);
+			}
+		}
+		
+		// 可以在这里添加其他类型的对象碰撞检测
+		// 例如：Enemy*, Collectible* 等
+	}
+
+#ifdef _DEBUG
+	// 在Player Debug窗口中添加对象碰撞信息
+	ImGui::Begin("Player Debug");
+	// ...existing debug info...
+	ImGui::Separator();
+	ImGui::Text("Object Collision Info:");
+	ImGui::Text("Total Goals: %d", goalCount);
+	ImGui::Text("Active Goals: %d", activeGoalCount);
+	ImGui::End();
+#endif
 }

@@ -4,6 +4,8 @@
 #include "MapChipField.h"
 #include "Player.h"
 #include "CameraController.h"
+#include "Goal.h"
+
 class GameScene : public IScene{
 	public:
 	GameScene() = default;
@@ -24,6 +26,9 @@ class GameScene : public IScene{
 
 	void SetMapID(int newMapID) { mapID = newMapID; }
 	int GetMapID() const { return mapID; }
+
+	// 碰撞回调函数
+	void OnGoalCollision(Goal* goal);
 
 	private:
 
@@ -55,5 +60,10 @@ class GameScene : public IScene{
 
 	int mapID = 1;
 
+	// 场景切换相关
+	bool isPendingSceneChange_ = false;
+	float sceneChangeTimer_ = 0.0f;
+	float sceneChangeDelay_ = 1.0f; // 1秒延迟
+	int pendingTargetMapID_ = 0;
 	
 };
