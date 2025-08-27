@@ -5,6 +5,7 @@
 #include "Player.h"
 #include "CameraController.h"
 #include "Goal.h"
+#include "Skydome.h"
 
 // 游戏阶段枚举
 enum class GameStage {
@@ -61,6 +62,11 @@ class GameScene : public IScene{
 
 	//Goal
 	KamataEngine::Model* goalModel_ = nullptr;
+
+	// Skydome
+	std::unique_ptr<Skydome> skydome_;
+	KamataEngine::Model* skydomeModel_ = nullptr;
+
 
 	// 存储所有除玩家和地图外的物体
 	std::vector<std::unique_ptr<Object3d>> objects_;

@@ -28,6 +28,20 @@ GameScene::~GameScene() {
 		blockModel_ = nullptr;
 	}
 
+	if (playerModel_) {
+		delete playerModel_;
+		playerModel_ = nullptr;
+	}
+	if (goalModel_) {
+		delete goalModel_;
+		goalModel_ = nullptr;
+	}
+
+	if (skydomeModel_) {
+		delete skydomeModel_;
+		skydomeModel_ = nullptr;
+	}
+
 }
 
 void GameScene::Initialize() {
@@ -35,6 +49,8 @@ void GameScene::Initialize() {
 	blockModel_ = Model::CreateFromOBJ("base_block");
 	playerModel_ = Model::CreateFromOBJ("player");
 	goalModel_ = Model::CreateFromOBJ("goal");
+	skydomeModel_ = Model::CreateFromOBJ("skydome");
+	
 }
 
 void GameScene::OnEnter() {  
@@ -49,6 +65,9 @@ void GameScene::OnEnter() {
     stageTransitionTimer_ = 0.0f;
     isPendingSceneChange_ = false;
     sceneChangeTimer_ = 0.0f;
+
+	skydome_ = std::make_unique<Skydome>();
+	skydome_->Initialize(skydomeModel_);
 
     
 	if (mapID != 0) {
@@ -142,6 +161,7 @@ void GameScene::Update() {
 			worldTransformBlock->TransferMatrix();
 		}
 	}
+	skydome_->Update();
 #ifdef _DEBUG
 
 	ImGui::Begin("Game Scene Debug");
@@ -339,6 +359,7 @@ void GameScene::Draw() {
 			}
 		}
 	}
+	skydome_->Draw(camera_);
 
 	Model::PostDraw();
 #ifdef _DEBUG

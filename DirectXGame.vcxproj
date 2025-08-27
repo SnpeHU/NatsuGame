@@ -161,6 +161,7 @@
     <ClCompile Include="MapChipField.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="SceneManager.cpp" />
+    <ClCompile Include="Skydome.cpp" />
     <ClCompile Include="TitleScene.cpp" />
     <ClCompile Include="WorldTransform.cpp" />
   </ItemGroup>
@@ -272,6 +273,7 @@
     <ClInclude Include="IScene.h" />
     <ClInclude Include="MapChipField.h" />
     <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="Skydome.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="TitleScene.h" />
   </ItemGroup>
