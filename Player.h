@@ -5,6 +5,7 @@
 using namespace KamataEngine;
 class MapChipField;
 class Goal;
+class GameScene;
 
 enum class CollisionDirection {
     kNone,
@@ -18,13 +19,16 @@ class Player : public Object3d {
 public:
 	Player() = default;
 	~Player() = default;
+	void Initialize(Model* model) override;
+
 	void Update() override;
 
 	void SetMapChipField(MapChipField* mapChipField) { mapChipField_ = mapChipField; }
+	void SetGameScene(GameScene* gameScene) { gameScene_ = gameScene; }
 	void Move();
 
 	// 碰撞检测相关方法
-	bool CheckCollisionAtPosition(const Vector3& position);
+	bool CheckCollisionAtPosition(const Vector3& position) const;
 	CollisionDirection CheckCollisionDirection(const Vector3& currentPos, const Vector3& newPos);
 	Vector3 GetPlayerSize() const { return playerSize_; }
 	void SetPlayerSize(const Vector3& size) { playerSize_ = size; }
@@ -47,63 +51,86 @@ public:
 
 private:
 	MapChipField* mapChipField_ = nullptr;
+	GameScene* gameScene_ = nullptr;
 	const std::vector<std::unique_ptr<Object3d>>* objects_ = nullptr;
 	
-	Vector2 forward = {0.0f, 1.0f};
+	// Physics properties
 	Vector2 velocity = {0.0f, 0.0f};
-	Vector2 acceleration = {0.0f, 0.0f};
-	float speed = 0.2f;  // 横向移动速度
-	float jumpForce = 0.6f;  // 跳跃力度
-	float gravity = 0.025f;   // 重力加速度
-	float maxFallSpeed = 0.8f;  // 最大下落速度
-	bool isEnableGravity = true;  // 启用重力
-	bool isDead = false;         // 死亡状态
+	float speed = 0.25f;
+	float jumpForce = 0.6f;
+	float gravity = 0.025f;
+	float maxFallSpeed = 0.8f;
+	bool isEnableGravity = true;
 
-	// 输入状态
-	bool isLeft = false;
-	bool isRight = false;
-	bool isJumpPressed = false;
-	bool isJumpTriggered = false;
-
-	// 地面检测和跳跃状态
+	// State flags
+	bool isDead = false;
 	bool isOnGround = false;
 	bool wasOnGround = false;
+	bool isOnWallLeft = false;
+	bool isOnWallRight = false;
+	bool wasOnWall = false;
 
-	float jumpBufferTime = 0.1f;  // 跳跃缓冲时间
+	// Input state (frame-based)
+	bool isLeft = false;
+	bool isRight = false;
+	bool isJumpTriggered = false;
+
+	// Jump parameters
+	float jumpBufferTime = 0.1f;
 	float jumpBufferTimer = 0.0f;
 
-	// 蹬墙跳相关变量
-	bool isOnWallLeft = false;   // 是否贴着左墙
-	bool isOnWallRight = false;  // 是否贴着右墙
-	bool wasOnWall = false;      // 上一帧是否贴着墙
-	float wallJumpForce = 0.45f;  // 蹬墙跳跳跃力度
-	float wallJumpHorizontalForce = 0.25f;  // 蹬墙跳水平推力
-	float wallSlideSpeed = 0.1f; // 贴墙滑行速度
-	float wallJumpBufferTime = 0.15f;  // 蹬墙跳缓冲时间
-	float wallJumpBufferTimer = 0.0f;  // 蹬墙跳缓冲计时器
-	float wallJumpDirectionLockTime = 0.2f;  // 蹬墙跳后方向锁定时间
-	float wallJumpDirectionLockTimer = 0.0f; // 方向锁定计时器
-	CollisionDirection wallJumpDirection = CollisionDirection::kNone; // 蹬墙跳方向
+	// Wall jump parameters
+	float wallJumpForce = 0.45f;
+	float wallJumpHorizontalForce = 0.4f;
+	float wallSlideSpeed = 0.1f;
+	float wallJumpBufferTime = 0.15f;
+	float wallJumpBufferTimer = 0.0f;
+	float wallJumpDirectionLockTime = 0.4f;
+	float wallJumpDirectionLockTimer = 0.0f;
+	CollisionDirection wallJumpDirection = CollisionDirection::kNone;
 
-	// 玩家碰撞箱大小 (默认稍小于地图瓦片)
-	Vector3 playerSize_ = {1.8f, 1.8f, 1.8f};
-
-	// 碰撞调试信息
+	// Collision properties
+	Vector3 playerSize_ = {0.5f, 0.5f, 0.5f};
 	CollisionDirection lastCollisionDirection_ = CollisionDirection::kNone;
 
-	// 生成点相关
+	// Collision detection parameters - 优化的碰撞检测参数
+	float wallDetectionRange_ = 0.12f;     // 增加墙体检测范围
+	float wallContactThreshold_ = 0.08f;   // 墙体接触阈值
+	float groundDetectionOffset_ = 0.05f;  // 地面检测偏移
+
+	// Spawn related
 	Vector3 spawnPosition_ = {0.0f, 0.0f, 0.0f};
 
-	// 私有方法
+	// Core movement methods
+	void UpdateTimers(float deltaTime);
 	void HandleInput();
 	void UpdatePhysics();
-	void CheckGroundCollision();
-	bool IsOnGround();
+	void ApplyMovementWithCollision();
+	void UpdateCollisionStatesPostMovement(); // 移动后更新碰撞状态
+	void ClearFrameInputs();
+
+	// Jump handling
+	void HandleJumping();
+	bool CanWallJump() const;
+	bool CanRegularJump() const;
+	void PerformWallJump();
+	void PerformRegularJump();
+
+	// Physics methods
+	void ApplyWallSlide();
+	void ApplyGravity();
+
+	// 优化的碰撞检测方法
+	bool CheckGroundCollision() const;
+	bool CheckWallCollision(bool isLeftSide) const;
+	bool CheckWallCollisionAtPosition(const Vector3& position, bool isLeftSide) const;
+	bool CheckCollisionAtPositionWithScale(const Vector3& position, const Vector3& size) const;
 	
-	// 蹬墙跳相关方法
-	void CheckWallCollision();
-	bool IsOnWallLeft();
-	bool IsOnWallRight();
-	void HandleWallJump();
-	void UpdateWallSlide();
+	// 新增：墙体贴合方法
+	Vector3 AdjustPositionToWall(const Vector3& currentPos, const Vector3& targetPos, bool isLeftWall);
+	float FindWallContactPosition(const Vector3& centerPos, bool isLeftSide) const;
+
+#ifdef _DEBUG
+	void ShowDebugWindow();
+#endif
 };

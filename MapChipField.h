@@ -45,6 +45,7 @@ public:
 	IndexSet GetMapChipIndexByPosition(const Vector3& position);
 
 	Rect GetRectByIndex(uint32_t xIndex, uint32_t yIndex);
+	Rect GetScaledRectByIndex(uint32_t xIndex, uint32_t yIndex, float scale);
 
 	// 碰撞检测相关方法
 	bool CheckCollision(const Rect& playerRect);
@@ -52,6 +53,11 @@ public:
 	bool IsBlockAtIndex(uint32_t xIndex, uint32_t yIndex);
 	bool RectIntersectsRect(const Rect& rect1, const Rect& rect2);
 	Rect GetPlayerRect(const Vector3& position, const Vector3& size);
+	
+	// 新的缩放碰撞检测方法
+	bool CheckScaledCollision(const Rect& playerRect, float blockScale);
+	bool CheckScaledCollisionAtPosition(const Vector3& position, const Vector3& size, float blockScale);
+	std::vector<IndexSet> GetScaledCollidingBlocks(const Vector3& position, const Vector3& size, float blockScale);
 	
 	// 获取碰撞信息的额外方法
 	std::vector<IndexSet> GetCollidingBlocks(const Vector3& position, const Vector3& size);

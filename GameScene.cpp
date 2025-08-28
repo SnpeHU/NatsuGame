@@ -42,6 +42,11 @@ GameScene::~GameScene() {
 		skydomeModel_ = nullptr;
 	}
 
+	 if (titleSprite_) {
+		delete titleSprite_;
+		titleSprite_ = nullptr;
+	}
+
 }
 
 void GameScene::Initialize() {
@@ -50,6 +55,9 @@ void GameScene::Initialize() {
 	playerModel_ = Model::CreateFromOBJ("player");
 	goalModel_ = Model::CreateFromOBJ("goal");
 	skydomeModel_ = Model::CreateFromOBJ("skydome");
+
+	titleSprite_ = Sprite::Create(TextureManager::Load("title.png"), Vector2(0, 0));
+	titleSprite_->SetSize(Vector2(1280.0f, 720.0f));
 	
 }
 
@@ -66,12 +74,18 @@ void GameScene::OnEnter() {
     isPendingSceneChange_ = false;
     sceneChangeTimer_ = 0.0f;
 
+    // 初始化倒计时相关变量
+    gameLifeTime_ = maxGameLifeTime_;
+    isLifeTimerActive_ = false;
+    currentBlockScale_ = 1.0f;
+    isBlockScalingEnabled_ = true;
+
 	skydome_ = std::make_unique<Skydome>();
 	skydome_->Initialize(skydomeModel_);
 
 	fade_ = std::make_unique<Fade>();
 	fade_->Initialize();
-	fade_->Start(Fade::Status::kFadeIn, 1.0f); // 1秒淡入
+	fade_->Start(Fade::Status::kFadeIn, 0.5f); // 1秒淡入
 
     
 	if (mapID != 0) {
@@ -182,8 +196,33 @@ void GameScene::Update() {
 	ImGui::Text("Game Stage: %s", stageNames[static_cast<int>(currentStage_)]);
 	ImGui::Text("Has Left Spawn: %s", hasLeftSpawn_ ? "Yes" : "No");
 	ImGui::Text("Spawn Position: (%.2f, %.2f)", spawnPosition_.x, spawnPosition_.y);
+	
+	// 新的倒计时信息
+	ImGui::Separator();
+	ImGui::Text("=== COUNTDOWN TIMER ===");
+	ImGui::Text("Life Timer Active: %s", isLifeTimerActive_ ? "YES" : "NO");
+	ImGui::Text("Game Life Time: %.2f / %.2f", gameLifeTime_, maxGameLifeTime_);
+	if (isLifeTimerActive_) {
+		float lifeRatio = gameLifeTime_ / maxGameLifeTime_;
+		ImGui::ProgressBar(lifeRatio, ImVec2(0.0f, 0.0f), "");
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::Text("Time Left: %.1fs", gameLifeTime_);
+	}
+	
+	// 方块缩放信息
+	ImGui::Separator();
+	ImGui::Text("=== BLOCK SCALING ===");
+	ImGui::Text("Block Scaling Enabled: %s", isBlockScalingEnabled_ ? "YES" : "NO");
+	ImGui::Text("Current Block Scale: %.3f", currentBlockScale_);
+	ImGui::Text("Min Block Scale: %.3f", minBlockScale_);
+	float scaleRatio = (currentBlockScale_ - minBlockScale_) / (1.0f - minBlockScale_);
+	ImGui::ProgressBar(scaleRatio, ImVec2(0.0f, 0.0f), "");
+	ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+	ImGui::Text("Scale: %.1f%%", currentBlockScale_ * 100.0f);
+	
 	if (player_) {
 		Vector3 playerPos = player_->GetTranslation();
+		ImGui::Separator();
 		ImGui::Text("Player Position: (%.2f, %.2f)", playerPos.x, playerPos.y);
 		float distanceFromSpawn = static_cast<float>(sqrt(pow(playerPos.x - spawnPosition_.x, 2) + pow(playerPos.y - spawnPosition_.y, 2)));
 		ImGui::Text("Distance from Spawn: %.2f", distanceFromSpawn);
@@ -246,6 +285,42 @@ void GameScene::Update() {
 	if (ImGui::Button("Force Player Death")) {
 		OnPlayerDeath();
 	}
+	
+	// 新的测试控制
+	ImGui::Separator();
+	ImGui::Text("Timer & Scaling Testing:");
+	if (ImGui::Button("Reset Timer")) {
+		gameLifeTime_ = maxGameLifeTime_;
+		currentBlockScale_ = 1.0f;
+		UpdateBlockScaling();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Set Timer to 5s")) {
+		gameLifeTime_ = 5.0f;
+		UpdateBlockScaling();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Set Timer to 1s")) {
+		gameLifeTime_ = 1.0f;
+		UpdateBlockScaling();
+	}
+	
+	if (ImGui::Checkbox("Enable Block Scaling", &isBlockScalingEnabled_)) {
+		if (!isBlockScalingEnabled_) {
+			// 恢复所有方块到原始大小
+			currentBlockScale_ = 1.0f;
+			for (std::vector<WorldTransform*>& worldTransformBlockX : worldTransformBlocks_) {
+				for (WorldTransform* worldTransformBlock : worldTransformBlockX) {
+					if (worldTransformBlock) {
+						worldTransformBlock->scale_ = {1.0f, 1.0f, 1.0f};
+					}
+				}
+			}
+		}
+	}
+	
+	ImGui::SliderFloat("Max Game Time", &maxGameLifeTime_, 5.0f, 60.0f, "%.1f seconds");
+	ImGui::SliderFloat("Min Block Scale", &minBlockScale_, 0.01f, 0.5f, "%.3f");
 
 	// Goal测试控制
 	ImGui::Separator();
@@ -329,6 +404,30 @@ void GameScene::Update() {
 			}
 		}
 	}
+	
+	// 新的键盘快捷键
+	if (Input::GetInstance()->TriggerKey(DIK_R)) {
+		// R键重置计时器
+		gameLifeTime_ = maxGameLifeTime_;
+		currentBlockScale_ = 1.0f;
+		UpdateBlockScaling();
+	}
+	
+	if (Input::GetInstance()->TriggerKey(DIK_T)) {
+		// T键切换缩放启用状态
+		isBlockScalingEnabled_ = !isBlockScalingEnabled_;
+		if (!isBlockScalingEnabled_) {
+			currentBlockScale_ = 1.0f;
+			for (std::vector<WorldTransform*>& worldTransformBlockX : worldTransformBlocks_) {
+				for (WorldTransform* worldTransformBlock : worldTransformBlockX) {
+					if (worldTransformBlock) {
+						worldTransformBlock->scale_ = {1.0f, 1.0f, 1.0f};
+					}
+				}
+			}
+		}
+	}
+
 	// Show instructions
 	ImGui::Separator();
 	ImGui::Text("Test Instructions:");
@@ -339,9 +438,10 @@ void GameScene::Update() {
 	ImGui::Text("5. Watch console output for debug messages");
 	ImGui::Text("6. Press K to test player death");
 	ImGui::Text("7. Press G to manually test Goal collision");
-	ImGui::Text("8. Use buttons above to force Goal collision");
+	ImGui::Text("8. Press R to reset timer");
+	ImGui::Text("9. Press T to toggle block scaling");
+	ImGui::Text("10. Timer starts when entering gameplay stage");
 #endif // _DEBUG
-
 }
 
 void GameScene::Draw() { 
@@ -369,6 +469,12 @@ void GameScene::Draw() {
 
 	Model::PostDraw();
 	fade_->Draw();
+	Sprite::PreDraw();
+	if (currentStage_ == GameStage::kPreparation&& mapID == 0) {
+		titleSprite_->Draw();
+	}
+	Sprite::PostDraw();
+
 #ifdef _DEBUG
 	PrimitiveDrawer::GetInstance()->DrawLine3d({100.0f, 0.0f, 0.0f}, {-100.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f});
 	PrimitiveDrawer::GetInstance()->DrawLine3d({0.0f, 100.0f, 0.0f}, {0.0f, -100.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f});
@@ -385,7 +491,7 @@ void GameScene::GenerateBlocks() {
 	uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
 	//关卡个数
-	int goalCount = 2;
+	int goalCount = 3;
 	int spawnCount = 0;
 	int blockCount = 0;
 
@@ -429,6 +535,8 @@ void GameScene::GenerateBlocks() {
 				
 				// 设置地图碰撞检测引用
 				player_->SetMapChipField(mapChipField_);
+				// 设置GameScene引用以获取方块缩放信息
+				player_->SetGameScene(this);
 			} else if (chipType == MapChipType::kGoal) {
 				
 #ifdef _DEBUG
@@ -500,6 +608,8 @@ void GameScene::GenerateBlocks() {
 		SetGameStage(GameStage::kPreparation);
 		
 		player_->SetMapChipField(mapChipField_);
+		// 设置GameScene引用以获取方块缩放信息
+		player_->SetGameScene(this);
 	}
 
 	// 如果没有找到任何Goal，手动创建一个测试用的Goal
@@ -744,8 +854,31 @@ void GameScene::HandlePreparationStage() {
 }
 
 void GameScene::HandleGameplayStage() {
-	// 游戏阶段：正常的游戏逻辑
-	// 这里可以添加游戏时间计时、分数计算等
+	// 启动生命计时器
+	if (!isLifeTimerActive_) {
+		isLifeTimerActive_ = true;
+#ifdef _DEBUG
+		printf("GameScene: Life timer started! Player has %.1f seconds\n", gameLifeTime_);
+#endif
+	}
+
+	// 更新生命计时器
+	if (isLifeTimerActive_) {
+		gameLifeTime_ -= 1.0f / 60.0f; // 假设60FPS
+		
+		// 检查玩家是否因时间耗尽而死亡
+		if (gameLifeTime_ <= 0.0f) {
+			gameLifeTime_ = 0.0f;
+#ifdef _DEBUG
+			printf("GameScene: Time's up! Player died from timeout\n");
+#endif
+			OnPlayerDeath();
+			return;
+		}
+
+		// 更新地图方块缩放
+		UpdateBlockScaling();
+	}
 
 #ifdef _DEBUG
 	// 只在第一次进入游戏阶段时显示消息
@@ -791,11 +924,47 @@ void GameScene::HandleEndingStage() {
 	}
 #endif
 }
+
+void GameScene::UpdateBlockScaling() {
+	if (!isBlockScalingEnabled_ || !isLifeTimerActive_) {
+		return;
+	}
+
+	// 计算缩放比例：随着时间流逝，方块逐渐变小
+	// 当gameLifeTime_接近0时，缩放比例接近minBlockScale_
+	float timeRatio = gameLifeTime_ / maxGameLifeTime_;
+	currentBlockScale_ = minBlockScale_ + (1.0f - minBlockScale_) * timeRatio;
+
+	// 确保缩放比例在合理范围内
+	if (currentBlockScale_ < minBlockScale_) {
+		currentBlockScale_ = minBlockScale_;
+	}
+	if (currentBlockScale_ > 1.0f) {
+		currentBlockScale_ = 1.0f;
+	}
+
+	// 更新所有地图方块的缩放
+	for (std::vector<WorldTransform*>& worldTransformBlockX : worldTransformBlocks_) {
+		for (WorldTransform* worldTransformBlock : worldTransformBlockX) {
+			if (worldTransformBlock) {
+				worldTransformBlock->scale_ = {currentBlockScale_, currentBlockScale_, currentBlockScale_};
+			}
+		}
+	}
+}
+
+float GameScene::GetCurrentBlockScale() const {
+	return currentBlockScale_;
+}
+
 //让玩家死亡
 void GameScene::OnPlayerDeath() {
 	if (player_) {
 		player_->SetIsDead(true);
 		SetGameStage(GameStage::kEnding);
+		
+		// 停止生命计时器
+		isLifeTimerActive_ = false;
 
 #ifdef _DEBUG
 		printf("GameScene: Player death detected\n");

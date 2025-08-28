@@ -134,6 +134,20 @@ namespace {
 	    return rect;
     }
 
+    MapChipField::Rect MapChipField::GetScaledRectByIndex(uint32_t xIndex, uint32_t yIndex, float scale) { 
+		Vector3 center = GetMapChipPositionByIndex(xIndex, yIndex);
+		
+		float scaledWidth = kBlockWidth * scale;
+		float scaledHeight = kBlockHeight * scale;
+		
+		Rect rect;
+	    rect.left = center.x - scaledWidth / 2.0f;
+	    rect.right = center.x + scaledWidth / 2.0f;
+	    rect.top = center.y + scaledHeight / 2.0f;
+	    rect.bottom = center.y - scaledHeight / 2.0f;
+	    return rect;
+    }
+
     // 碰撞检测方法实现
     bool MapChipField::CheckCollision(const Rect& playerRect) {
         // 获取玩家矩形覆盖的地图瓦片范围
@@ -162,9 +176,41 @@ namespace {
         return false;
     }
 
+    bool MapChipField::CheckScaledCollision(const Rect& playerRect, float blockScale) {
+        // 获取玩家矩形覆盖的地图瓦片范围
+        int leftIndex = static_cast<int>(playerRect.left / kBlockWidth);
+        int rightIndex = static_cast<int>(playerRect.right / kBlockWidth);
+        int bottomIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.top) / kBlockHeight);
+        int topIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.bottom) / kBlockHeight);
+
+        // 确保索引在有效范围内
+        leftIndex = std::max(0, leftIndex);
+        rightIndex = std::min(static_cast<int>(numBlockHorizontal_ - 1), rightIndex);
+        bottomIndex = std::max(0, bottomIndex);
+        topIndex = std::min(static_cast<int>(numBlockVertical_ - 1), topIndex);
+
+        // 检查范围内的每个瓦片
+        for (int y = bottomIndex; y <= topIndex; ++y) {
+            for (int x = leftIndex; x <= rightIndex; ++x) {
+                if (IsBlockAtIndex(x, y)) {
+                    Rect blockRect = GetScaledRectByIndex(x, y, blockScale);
+                    if (RectIntersectsRect(playerRect, blockRect)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     bool MapChipField::CheckCollisionAtPosition(const Vector3& position, const Vector3& size) {
         Rect playerRect = GetPlayerRect(position, size);
         return CheckCollision(playerRect);
+    }
+
+    bool MapChipField::CheckScaledCollisionAtPosition(const Vector3& position, const Vector3& size, float blockScale) {
+        Rect playerRect = GetPlayerRect(position, size);
+        return CheckScaledCollision(playerRect, blockScale);
     }
 
     bool MapChipField::IsBlockAtIndex(uint32_t xIndex, uint32_t yIndex) {
@@ -210,6 +256,36 @@ namespace {
             for (int x = leftIndex; x <= rightIndex; ++x) {
                 if (IsBlockAtIndex(x, y)) {
                     Rect blockRect = GetRectByIndex(x, y);
+                    if (RectIntersectsRect(playerRect, blockRect)) {
+                        collidingBlocks.push_back({static_cast<uint32_t>(x), static_cast<uint32_t>(y)});
+                    }
+                }
+            }
+        }
+        return collidingBlocks;
+    }
+
+    std::vector<IndexSet> MapChipField::GetScaledCollidingBlocks(const Vector3& position, const Vector3& size, float blockScale) {
+        std::vector<IndexSet> collidingBlocks;
+        Rect playerRect = GetPlayerRect(position, size);
+        
+        // 获取玩家矩形覆盖的地图瓦片范围
+        int leftIndex = static_cast<int>(playerRect.left / kBlockWidth);
+        int rightIndex = static_cast<int>(playerRect.right / kBlockWidth);
+        int bottomIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.top) / kBlockHeight);
+        int topIndex = static_cast<int>((numBlockVertical_ * kBlockHeight - playerRect.bottom) / kBlockHeight);
+
+        // 确保索引在有效范围内
+        leftIndex = std::max(0, leftIndex);
+        rightIndex = std::min(static_cast<int>(numBlockHorizontal_ - 1), rightIndex);
+        bottomIndex = std::max(0, bottomIndex);
+        topIndex = std::min(static_cast<int>(numBlockVertical_ - 1), topIndex);
+
+        // 检查范围内的每个瓦片
+        for (int y = bottomIndex; y <= topIndex; ++y) {
+            for (int x = leftIndex; x <= rightIndex; ++x) {
+                if (IsBlockAtIndex(x, y)) {
+                    Rect blockRect = GetScaledRectByIndex(x, y, blockScale);
                     if (RectIntersectsRect(playerRect, blockRect)) {
                         collidingBlocks.push_back({static_cast<uint32_t>(x), static_cast<uint32_t>(y)});
                     }

@@ -50,6 +50,10 @@ class GameScene : public IScene{
 	// 玩家死亡处理
 	void OnPlayerDeath();
 
+	// 新的方法：更新地图方块缩放
+	void UpdateBlockScaling();
+	float GetCurrentBlockScale() const;
+
 	private:
 
 	// block
@@ -70,6 +74,9 @@ class GameScene : public IScene{
 
 	//fade
 	std::unique_ptr<Fade> fade_;
+
+	//titie
+	KamataEngine::Sprite* titleSprite_ = nullptr;
 
 
 	// 存储所有除玩家和地图外的物体
@@ -102,7 +109,13 @@ class GameScene : public IScene{
 	float stageTransitionTimer_ = 0.0f;  // 阶段转换计时器
 	float endingStageDelay_ = 1.0f;  // 结束阶段延迟时间
 
-	//游戏倒计时
-	float gameTime_ = 10.0f;
-	
+	// 游戏倒计时相关
+	float gameLifeTime_ = 25.0f;  // 游戏生命时间（秒）
+	float maxGameLifeTime_ = 25.0f;  // 最大游戏生命时间
+	bool isLifeTimerActive_ = false;  // 生命计时器是否激活
+
+	// 地图方块缩放相关
+	float currentBlockScale_ = 1.0f;  // 当前方块缩放比例
+	float minBlockScale_ = 0.01f;      // 最小方块缩放比例
+	bool isBlockScalingEnabled_ = true;  // 是否启用方块缩放
 };

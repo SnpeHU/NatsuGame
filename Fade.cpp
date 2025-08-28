@@ -8,6 +8,7 @@ Fade::~Fade() {
 void Fade::Initialize() { 
 	
 	fadeSprite_ = Sprite::Create(0, {0,0});
+	//fadeSprite_->SetPosition()
 	fadeSprite_->SetSize(Vector2(1280.0f, 720.0f));
 	fadeSprite_->SetColor(Vector4(0, 0, 0, 1.0f));
 
