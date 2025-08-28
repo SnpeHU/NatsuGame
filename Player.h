@@ -76,8 +76,8 @@ private:
 	bool isOnWallLeft = false;   // 是否贴着左墙
 	bool isOnWallRight = false;  // 是否贴着右墙
 	bool wasOnWall = false;      // 上一帧是否贴着墙
-	float wallJumpForce = 0.7f;  // 蹬墙跳跳跃力度
-	float wallJumpHorizontalForce = 0.3f;  // 蹬墙跳水平推力
+	float wallJumpForce = 0.45f;  // 蹬墙跳跳跃力度
+	float wallJumpHorizontalForce = 0.25f;  // 蹬墙跳水平推力
 	float wallSlideSpeed = 0.1f; // 贴墙滑行速度
 	float wallJumpBufferTime = 0.15f;  // 蹬墙跳缓冲时间
 	float wallJumpBufferTimer = 0.0f;  // 蹬墙跳缓冲计时器
@@ -86,7 +86,7 @@ private:
 	CollisionDirection wallJumpDirection = CollisionDirection::kNone; // 蹬墙跳方向
 
 	// 玩家碰撞箱大小 (默认稍小于地图瓦片)
-	Vector3 playerSize_ = {1.8f, 1.8f, 2.0f};
+	Vector3 playerSize_ = {1.8f, 1.8f, 1.8f};
 
 	// 碰撞调试信息
 	CollisionDirection lastCollisionDirection_ = CollisionDirection::kNone;

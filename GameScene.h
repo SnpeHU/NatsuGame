@@ -6,6 +6,7 @@
 #include "CameraController.h"
 #include "Goal.h"
 #include "Skydome.h"
+#include "Fade.h"
 
 // 游戏阶段枚举
 enum class GameStage {
@@ -67,6 +68,9 @@ class GameScene : public IScene{
 	std::unique_ptr<Skydome> skydome_;
 	KamataEngine::Model* skydomeModel_ = nullptr;
 
+	//fade
+	std::unique_ptr<Fade> fade_;
+
 
 	// 存储所有除玩家和地图外的物体
 	std::vector<std::unique_ptr<Object3d>> objects_;
@@ -82,7 +86,7 @@ class GameScene : public IScene{
 	KamataEngine::DebugCamera* debugCamera_ = nullptr;
 	bool isDebugCameraActive_ = false;
 
-	int mapID = 1;
+	int mapID = 0;
 
 	// 场景切换相关
 	bool isPendingSceneChange_ = false;
@@ -97,5 +101,8 @@ class GameScene : public IScene{
 	bool hasLeftSpawn_ = false;  // 玩家是否已经离开生成点
 	float stageTransitionTimer_ = 0.0f;  // 阶段转换计时器
 	float endingStageDelay_ = 1.0f;  // 结束阶段延迟时间
+
+	//游戏倒计时
+	float gameTime_ = 10.0f;
 	
 };

@@ -69,6 +69,10 @@ void GameScene::OnEnter() {
 	skydome_ = std::make_unique<Skydome>();
 	skydome_->Initialize(skydomeModel_);
 
+	fade_ = std::make_unique<Fade>();
+	fade_->Initialize();
+	fade_->Start(Fade::Status::kFadeIn, 1.0f); // 1秒淡入
+
     
 	if (mapID != 0) {
 		std::string mapPath = "Resources/map/level" + std::to_string(mapID) + ".csv";
@@ -122,10 +126,12 @@ void GameScene::OnEnter() {
 void GameScene::Update() {
 	// 更新游戏阶段
 	UpdateGameStage();
+	
 
 	// 根据当前阶段执行不同的逻辑
 	switch (currentStage_) {
 	case GameStage::kPreparation:
+		
 		HandlePreparationStage();
 		break;
 	case GameStage::kGameplay:
@@ -362,6 +368,7 @@ void GameScene::Draw() {
 	skydome_->Draw(camera_);
 
 	Model::PostDraw();
+	fade_->Draw();
 #ifdef _DEBUG
 	PrimitiveDrawer::GetInstance()->DrawLine3d({100.0f, 0.0f, 0.0f}, {-100.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f});
 	PrimitiveDrawer::GetInstance()->DrawLine3d({0.0f, 100.0f, 0.0f}, {0.0f, -100.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f});
@@ -665,6 +672,7 @@ void GameScene::OnGoalCollision(Goal* goal) {
 
 	// 进入结束阶段
 	SetGameStage(GameStage::kEnding);
+	fade_->Start(Fade::Status::kFadeOut, 1.0f); // 1秒淡出
 
 	// 禁用已触发的Goal以防重复触发
 	goal->SetActive(false);
@@ -692,6 +700,7 @@ void GameScene::SetGameStage(GameStage stage) {
 void GameScene::UpdateGameStage() {
 	switch (currentStage_) {
 	case GameStage::kPreparation:
+		fade_->Update();
 		// 检查玩家是否离开了生成点
 		if (player_) {
 			// 使用Player类的方法来检查是否离开生成区域
@@ -705,11 +714,14 @@ void GameScene::UpdateGameStage() {
 	case GameStage::kGameplay:
 		// 检查玩家是否死亡
 		if (player_ && player_->GetIsDead()) {
+			fade_->Start(Fade::Status::kFadeOut, 1.0f); // 1秒淡出
 			SetGameStage(GameStage::kEnding);
+
 		}
 		break;
 	
 	case GameStage::kEnding:
+		fade_->Update();
 		// 在结束阶段，更新计时器
 		stageTransitionTimer_ += 1.0f / 60.0f; // 假设60FPS
 		break;
@@ -717,6 +729,7 @@ void GameScene::UpdateGameStage() {
 }
 
 void GameScene::HandlePreparationStage() {
+	
 	// 准备阶段：显示准备提示信息，限制某些功能等
 	// 可以在这里添加UI提示，比如"移动离开生成点开始游戏"
 
@@ -745,6 +758,7 @@ void GameScene::HandleGameplayStage() {
 }
 
 void GameScene::HandleEndingStage() {
+	
 	// 结束阶段：处理游戏结束逻辑
 	if (stageTransitionTimer_ >= endingStageDelay_) {
 		if (player_ && player_->GetIsDead()) {
@@ -777,7 +791,7 @@ void GameScene::HandleEndingStage() {
 	}
 #endif
 }
-
+//让玩家死亡
 void GameScene::OnPlayerDeath() {
 	if (player_) {
 		player_->SetIsDead(true);

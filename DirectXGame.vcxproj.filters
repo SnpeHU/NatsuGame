@@ -60,8 +60,14 @@
     <ClCompile Include="CameraController.cpp">
       <Filter>Camera</Filter>
     </ClCompile>
-    <ClCompile Include="Goal.cpp">
+    <ClCompile Include="Skydome.cpp">
       <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Goal.cpp">
+      <Filter>Object</Filter>
+    </ClCompile>
+    <ClCompile Include="Fade.cpp">
+      <Filter>Tool</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -141,10 +147,19 @@
     <ClInclude Include="Easing.h">
       <Filter>Tool</Filter>
     </ClInclude>
-    <ClInclude Include="Goal.h">
+    <ClInclude Include="timer.h">
+      <Filter>Tool</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\TD\TD3-Soul\TD3-Soul\Tool\timer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="timer.h">
+    <ClInclude Include="Skydome.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Goal.h">
+      <Filter>Object</Filter>
+    </ClInclude>
+    <ClInclude Include="Fade.h">
       <Filter>Tool</Filter>
     </ClInclude>
   </ItemGroup>

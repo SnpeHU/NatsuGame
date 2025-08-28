@@ -62,8 +62,8 @@ public:
 	uint32_t GetNumBlockVertical() const { return numBlockVertical_; }
 
 public:  
-	static inline const float kBlockWidth = 2.0f;  
-	static inline const float kBlockHeight = 2.0f;  
+	static inline float kBlockWidth = 2.0f;  
+	static inline float kBlockHeight = 2.0f;  
 
 	static inline const uint32_t kNumBlockHorizontal = 5;  
 	static inline const uint32_t kNumBlockVertical = 5;  

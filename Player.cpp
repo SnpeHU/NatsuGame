@@ -132,6 +132,11 @@ void Player::HandleInput() {
 	if (isJumpTriggered) {
 		jumpBufferTimer = jumpBufferTime;
 		wallJumpBufferTimer = wallJumpBufferTime; // 同时设置蹬墙跳缓冲
+		
+#ifdef _DEBUG
+		printf("Player: Jump triggered - setting buffers (jump: %.3f, wallJump: %.3f)\n", 
+			   jumpBufferTimer, wallJumpBufferTimer);
+#endif
 	}
 	
 	// 更新跳跃缓冲计时器
@@ -186,6 +191,16 @@ void Player::UpdatePhysics() {
 	
 	// 存储上一帧的地面状态
 	wasOnGround = isOnGround;
+	
+#ifdef _DEBUG
+	// 添加更多调试信息
+	if (isOnWallLeft || isOnWallRight) {
+		printf("Player: Wall contact - Left: %s, Right: %s, WallJumpDir: %d\n", 
+			   isOnWallLeft ? "YES" : "NO", 
+			   isOnWallRight ? "YES" : "NO",
+			   static_cast<int>(wallJumpDirection));
+	}
+#endif
 }
 
 void Player::CheckGroundCollision() {
@@ -204,6 +219,14 @@ void Player::CheckWallCollision() {
 	
 	// 检查右墙碰撞
 	isOnWallRight = IsOnWallRight();
+	
+	// 更新墙体跳跃方向记录
+	if (isOnWallLeft) {
+		wallJumpDirection = CollisionDirection::kLeft;
+	} else if (isOnWallRight) {
+		wallJumpDirection = CollisionDirection::kRight;
+	}
+	// 注意：这里不重置wallJumpDirection，因为在离开墙体后的短时间内仍需要这个信息
 }
 
 bool Player::IsOnWallLeft() {
@@ -219,7 +242,16 @@ bool Player::IsOnWallLeft() {
 	checkSize.x = 0.2f; // 只检查很小的宽度
 	checkSize.y *= 0.8f; // 减少高度检查范围，避免地面干扰
 	
-	return mapChipField_->CheckCollisionAtPosition(checkPosition, checkSize);
+	bool result = mapChipField_->CheckCollisionAtPosition(checkPosition, checkSize);
+	
+#ifdef _DEBUG
+	if (result) {
+		printf("Player: Detected LEFT wall at position (%.2f, %.2f)\n", 
+			   worldTransform_.translation_.x, worldTransform_.translation_.y);
+	}
+#endif
+	
+	return result;
 }
 
 bool Player::IsOnWallRight() {
@@ -235,7 +267,16 @@ bool Player::IsOnWallRight() {
 	checkSize.x = 0.2f; // 只检查很小的宽度
 	checkSize.y *= 0.8f; // 减少高度检查范围，避免地面干扰
 	
-	return mapChipField_->CheckCollisionAtPosition(checkPosition, checkSize);
+	bool result = mapChipField_->CheckCollisionAtPosition(checkPosition, checkSize);
+	
+#ifdef _DEBUG
+	if (result) {
+		printf("Player: Detected RIGHT wall at position (%.2f, %.2f)\n", 
+			   worldTransform_.translation_.x, worldTransform_.translation_.y);
+	}
+#endif
+	
+	return result;
 }
 
 void Player::HandleWallJump() {
@@ -243,24 +284,30 @@ void Player::HandleWallJump() {
 	bool canWallJump = (isOnWallLeft || isOnWallRight || wasOnWall) && !isOnGround && wallJumpBufferTimer > 0.0f;
 	
 	if (canWallJump) {
-		// 确定蹬墙跳方向
+		// 确定蹬墙跳方向 - 修复：基于当前贴着的墙来确定跳跃方向
 		CollisionDirection jumpDirection = CollisionDirection::kNone;
 		
-		if (isOnWallLeft || (wasOnWall && wallJumpDirection == CollisionDirection::kLeft)) {
-			jumpDirection = CollisionDirection::kLeft;
-		} else if (isOnWallRight || (wasOnWall && wallJumpDirection == CollisionDirection::kRight)) {
-			jumpDirection = CollisionDirection::kRight;
+		// 优先检查当前帧的墙体接触状态
+		if (isOnWallLeft) {
+			jumpDirection = CollisionDirection::kLeft;  // 贴着左墙
+		} else if (isOnWallRight) {
+			jumpDirection = CollisionDirection::kRight; // 贴着右墙
+		} else if (wasOnWall && wallJumpDirection != CollisionDirection::kNone) {
+			// 如果当前帧没有贴墙，但上一帧贴着墙，使用之前记录的方向
+			jumpDirection = wallJumpDirection;
 		}
 		
 		if (jumpDirection != CollisionDirection::kNone) {
 			// 执行蹬墙跳
 			velocity.y = wallJumpForce;
 			
-			// 设置水平速度（向远离墙体的方向）
+			// 设置水平速度（向远离墙体的方向）- 修复：确保正确的方向
 			if (jumpDirection == CollisionDirection::kLeft) {
-				velocity.x = wallJumpHorizontalForce; // 向右跳
+				// 贴着左墙，向右跳
+				velocity.x = wallJumpHorizontalForce;
 			} else if (jumpDirection == CollisionDirection::kRight) {
-				velocity.x = -wallJumpHorizontalForce; // 向左跳
+				// 贴着右墙，向左跳
+				velocity.x = -wallJumpHorizontalForce;
 			}
 			
 			// 设置方向锁定
@@ -272,8 +319,8 @@ void Player::HandleWallJump() {
 			jumpBufferTimer = 0.0f;
 			
 #ifdef _DEBUG
-			printf("Player: Wall jump executed from %s wall\n", 
-				   jumpDirection == CollisionDirection::kLeft ? "left" : "right");
+			printf("Player: Wall jump executed from %s wall (velocity.x = %.3f)\n", 
+				   jumpDirection == CollisionDirection::kLeft ? "left" : "right", velocity.x);
 #endif
 		}
 	}
